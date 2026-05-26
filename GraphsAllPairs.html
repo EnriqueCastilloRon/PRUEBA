@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fatigue Data Explorer – High Quality</title>
+    <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; }
+        body { background: #f0f2f6; margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 24px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); padding: 20px; }
+        h1 { font-size: 1.8rem; margin-top: 0; color: #1e466e; }
+        .file-zone { background: #eef2fa; padding: 12px 20px; border-radius: 40px; margin: 15px 0; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+        .file-label { background: #2c5282; color: white; padding: 8px 20px; border-radius: 40px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .file-label:hover { background: #1e3a5f; }
+        #status { font-weight: 500; color: #1e466e; }
+        .slider-panel { display: flex; flex-wrap: wrap; gap: 30px; background: #f9fafc; padding: 15px 25px; border-radius: 28px; margin: 20px 0; justify-content: center; }
+        .slider-item { flex: 1; min-width: 180px; }
+        .slider-item label { font-weight: 700; color: #0b2b3f; }
+        input[type="range"] { width: 100%; margin: 8px 0; cursor: pointer; }
+        .value-display { font-size: 0.85rem; color: #2d3748; background: #e2e8f0; display: inline-block; padding: 2px 10px; border-radius: 20px; }
+        .button-group { display: flex; gap: 16px; justify-content: center; margin: 10px 0 5px; }
+        button { background: #2c5282; border: none; color: white; padding: 8px 28px; border-radius: 40px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
+        button:hover { background: #1a4972; transform: scale(1.02); }
+        .plot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 25px; }
+        .plot-card { background: #ffffff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .plot-div { width: 100%; height: 340px; }
+        .info-text { text-align: center; margin-top: 20px; font-size: 0.9rem; color: #1e466e; background: #eef2fa; padding: 10px; border-radius: 48px; }
+        footer { text-align: center; font-size: 0.7rem; color: #718096; margin-top: 20px; }
+        @media (max-width: 900px) { .plot-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px) { .plot-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📊 Fatigue Data Explorer</h1>
+    <div class="file-zone">
+        <label class="file-label" for="csvFile">📂 Load DataFatigue.csv</label>
+        <input type="file" id="csvFile" accept=".csv">
+        <span id="status">No file loaded. Please select your CSV.</span>
+    </div>
+
+    <div class="slider-panel" id="sliders" style="display: none;">
+        <div class="slider-item">
+            <label>🎯 Center α (sigmaM normalized)</label>
+            <input type="range" id="centerSlider" min="0" max="1" step="0.005" value="0.5">
+            <span class="value-display" id="centerVal">0.500</span>
+        </div>
+        <div class="slider-item">
+            <label>📏 Threshold</label>
+            <input type="range" id="threshSlider" min="0" max="1" step="0.005" value="0.2">
+            <span class="value-display" id="threshVal">0.200</span>
+        </div>
+        <div class="slider-item">
+            <label>🌫️ Min opacity (background)</label>
+            <input type="range" id="minOpSlider" min="0" max="0.5" step="0.01" value="0.1">
+            <span class="value-display" id="minOpVal">0.100</span>
+        </div>
+    </div>
+
+    <div class="button-group" id="buttons" style="display: none;">
+        <button id="savePNG">📸 Save as PNG (High-Res)</button>
+        <button id="savePDF">📑 Save as PDF</button>
+    </div>
+
+    <div id="plotGrid" class="plot-grid"></div>
+    <div id="stats" class="info-text"></div>
+    <footer>Opacity: background = min opacity; points inside [center ± threshold] have opacity rescaled to [min_opacity, 1] based on sigmaM.<br>✅ SVG renderer – sharp and crisp graphics. Axis labels are now forced to be visible.</footer>
+</div>
+
+<script>
+    let derived = null;
+    let currentParams = { center: 0.5, threshold: 0.2, minOp: 0.1 };
+    
+    // Plot definitions with explicit readable axis labels
+    const plotDefs = [
+        { id: "plot0", title: "logN vs sigmaM", xKey: "logN", yKey: "sigmaM", xLabel: "logN", yLabel: "sigmaM", xlog: true, baseColor: "rgb(31, 119, 180)" },
+        { id: "plot1", title: "logN vs sigma_m", xKey: "logN", yKey: "sigma_m", xLabel: "logN", yLabel: "sigma_m = R·σM", xlog: true, baseColor: "rgb(44, 160, 44)" },
+        { id: "plot2", title: "sigmaM vs sigma_m", xKey: "sigmaM", yKey: "sigma_m", xLabel: "sigmaM", yLabel: "sigma_m", xlog: false, baseColor: "rgb(214, 39, 40)" },
+        { id: "plot3", title: "logN vs X", xKey: "logN", yKey: "X", xLabel: "logN", yLabel: "X = 1 - R", xlog: true, baseColor: "rgb(148, 103, 189)" },
+        { id: "plot4", title: "logN vs Y", xKey: "logN", yKey: "Y", xLabel: "logN", yLabel: "Y (σ_m normalizado)", xlog: true, baseColor: "rgb(255, 127, 14)" },
+        { id: "plot5", title: "X vs Y", xKey: "X", yKey: "Y", xLabel: "X = 1 - R", yLabel: "Y", xlog: false, baseColor: "rgb(140, 86, 75)" }
+    ];
+
+    function computeOpacities(raw_alpha, center, threshold, min_opacity) {
+        const n = raw_alpha.length;
+        const alphas = new Array(n);
+        const low = center - threshold;
+        const high = center + threshold;
+        let highlighted = [];
+        for (let i = 0; i < n; i++) {
+            if (raw_alpha[i] >= low && raw_alpha[i] <= high) {
+                highlighted.push(i);
+                alphas[i] = min_opacity;
+            } else {
+                alphas[i] = min_opacity;
+            }
+        }
+        const numHighlighted = highlighted.length;
+        if (numHighlighted > 0) {
+            let minRaw = Infinity, maxRaw = -Infinity;
+            for (let idx of highlighted) {
+                if (raw_alpha[idx] < minRaw) minRaw = raw_alpha[idx];
+                if (raw_alpha[idx] > maxRaw) maxRaw = raw_alpha[idx];
+            }
+            if (maxRaw > minRaw) {
+                for (let idx of highlighted) {
+                    let t = (raw_alpha[idx] - minRaw) / (maxRaw - minRaw);
+                    alphas[idx] = min_opacity + (1 - min_opacity) * t;
+                }
+            } else {
+                for (let idx of highlighted) alphas[idx] = 0.8;
+            }
+        }
+        return { alphas, numHighlighted, low, high };
+    }
+
+    function buildAllTraces() {
+        if (!derived) return [];
+        const { logN, sigma_m, X, Y, raw_alpha, sigmaM } = derived;
+        const n = logN.length;
+        const { alphas, numHighlighted, low, high } = computeOpacities(
+            raw_alpha, currentParams.center, currentParams.threshold, currentParams.minOp
+        );
+        const total = n;
+        const percent = (numHighlighted/total*100).toFixed(1);
+        document.getElementById('stats').innerHTML = `🔹 Highlighted points (inside [${low.toFixed(3)}, ${high.toFixed(3)}]): ${numHighlighted} of ${total} (${percent}%) — opacity rescaled to [${currentParams.minOp.toFixed(2)}, 1]`;
+        
+        const traces = [];
+        for (let def of plotDefs) {
+            let xVals, yVals;
+            switch (def.xKey) {
+                case 'logN': xVals = logN; break;
+                case 'sigmaM': xVals = sigmaM; break;
+                case 'X': xVals = X; break;
+                default: xVals = derived[def.xKey];
+            }
+            switch (def.yKey) {
+                case 'sigmaM': yVals = sigmaM; break;
+                case 'sigma_m': yVals = sigma_m; break;
+                case 'X': yVals = X; break;
+                case 'Y': yVals = Y; break;
+                default: yVals = derived[def.yKey];
+            }
+            const match = def.baseColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            const r = match ? parseInt(match[1]) : 0;
+            const g = match ? parseInt(match[2]) : 0;
+            const b = match ? parseInt(match[3]) : 0;
+            const rgbaColors = new Array(n);
+            for (let i = 0; i < n; i++) {
+                rgbaColors[i] = `rgba(${r},${g},${b},${alphas[i]})`;
+            }
+            traces.push({
+                x: xVals,
+                y: yVals,
+                mode: 'markers',
+                type: 'scatter',
+                marker: {
+                    color: rgbaColors,
+                    size: 8,
+                    line: { width: 0.5, color: 'rgba(0,0,0,0.2)' }
+                },
+                name: def.title,
+                showlegend: false,
+                hoverinfo: 'x+y'
+            });
+        }
+        return traces;
+    }
+
+    function renderAllPlots() {
+        if (!derived) return;
+        const traces = buildAllTraces();
+        for (let i = 0; i < plotDefs.length; i++) {
+            const def = plotDefs[i];
+            const layout = {
+                title: { text: def.title, font: { size: 12, weight: 'bold' } },
+                xaxis: {
+                    title: { text: def.xLabel, font: { size: 11, weight: 'normal' } },
+                    type: def.xlog ? 'log' : 'linear',
+                    tickfont: { size: 10 },
+                    gridwidth: 1,
+                    gridcolor: '#aaa',
+                    zerolinewidth: 1,
+                    zerolinecolor: '#ccc',
+                    showline: true,
+                    linewidth: 1,
+                    linecolor: '#888'
+                },
+                yaxis: {
+                    title: { text: def.yLabel, font: { size: 11, weight: 'normal' } },
+                    tickfont: { size: 10 },
+                    gridwidth: 1,
+                    gridcolor: '#aaa',
+                    zerolinewidth: 1,
+                    zerolinecolor: '#ccc',
+                    showline: true,
+                    linewidth: 1,
+                    linecolor: '#888'
+                },
+                margin: { t: 35, l: 55, r: 25, b: 50 },  // increased left/bottom for labels
+                height: 340,
+                plot_bgcolor: '#fcfcfc',
+                paper_bgcolor: '#ffffff',
+                hovermode: 'closest'
+            };
+            Plotly.react(def.id, [traces[i]], layout, { responsive: true });
+        }
+    }
+
+    function loadAndProcess(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result;
+            const lines = text.trim().split(/\r?\n/);
+            if (lines.length < 2) {
+                document.getElementById('status').innerHTML = "❌ Empty file or missing header.";
+                return;
+            }
+            const rows = [];
+            for (let i = 1; i < lines.length; i++) {
+                const parts = lines[i].split(',');
+                if (parts.length < 3) continue;
+                const R = parseFloat(parts[0]);
+                const N = parseFloat(parts[1]);
+                const sigmaM = parseFloat(parts[2]);
+                if (!isNaN(R) && !isNaN(N) && !isNaN(sigmaM)) {
+                    rows.push({ R, N, sigmaM });
+                }
+            }
+            if (rows.length === 0) {
+                document.getElementById('status').innerHTML = "❌ No valid numeric rows.";
+                return;
+            }
+            
+            const n = rows.length;
+            const sigma_m = new Array(n);
+            const logN = new Array(n);
+            const X = new Array(n);
+            const sigmaM_vals = new Array(n);
+            let min_sigmam = Infinity, max_sigmam = -Infinity;
+            let min_sM = Infinity, max_sM = -Infinity;
+            
+            for (let i = 0; i < n; i++) {
+                const R = rows[i].R, N = rows[i].N, sM = rows[i].sigmaM;
+                sigmaM_vals[i] = sM;
+                sigma_m[i] = R * sM;
+                logN[i] = Math.log10(N);
+                X[i] = 1 - R;
+                if (sigma_m[i] < min_sigmam) min_sigmam = sigma_m[i];
+                if (sigma_m[i] > max_sigmam) max_sigmam = sigma_m[i];
+                if (sM < min_sM) min_sM = sM;
+                if (sM > max_sM) max_sM = sM;
+            }
+            const Y = new Array(n);
+            const range_sigmam = max_sigmam - min_sigmam;
+            for (let i = 0; i < n; i++) {
+                Y[i] = range_sigmam === 0 ? 0.5 : (sigma_m[i] - min_sigmam) / range_sigmam;
+            }
+            const raw_alpha = new Array(n);
+            const range_sM = max_sM - min_sM;
+            for (let i = 0; i < n; i++) {
+                raw_alpha[i] = range_sM === 0 ? 0 : (sigmaM_vals[i] - min_sM) / range_sM;
+            }
+            
+            derived = { logN, sigma_m, X, Y, raw_alpha, sigmaM: sigmaM_vals };
+            
+            const grid = document.getElementById('plotGrid');
+            grid.innerHTML = '';
+            plotDefs.forEach(def => {
+                const card = document.createElement('div');
+                card.className = 'plot-card';
+                const div = document.createElement('div');
+                div.id = def.id;
+                div.className = 'plot-div';
+                card.appendChild(div);
+                grid.appendChild(card);
+            });
+            
+            document.getElementById('sliders').style.display = 'flex';
+            document.getElementById('buttons').style.display = 'flex';
+            document.getElementById('status').innerHTML = `✅ Loaded ${n} data points. Adjust sliders to explore.`;
+            renderAllPlots();
+        };
+        reader.readAsText(file);
+    }
+    
+    async function exportFigure(format) {
+        if (!derived) return;
+        const grid = document.getElementById('plotGrid');
+        if (!grid) return;
+        try {
+            const canvas = await html2canvas(grid, { scale: 3, backgroundColor: '#ffffff', logging: false });
+            const timestamp = new Date().toISOString().slice(0,19).replace(/:/g, '-');
+            if (format === 'png') {
+                canvas.toBlob(blob => {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `fatigue_plots_${timestamp}.png`;
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                });
+            } else if (format === 'pdf') {
+                const { jsPDF } = window.jspdf;
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF('landscape', 'mm', 'a4');
+                const imgWidth = 280;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+                pdf.save(`fatigue_plots_${timestamp}.pdf`);
+            }
+        } catch(err) {
+            alert("Export failed: " + err);
+        }
+    }
+    
+    function updateFromSliders() {
+        if (!derived) return;
+        currentParams.center = parseFloat(document.getElementById('centerSlider').value);
+        currentParams.threshold = parseFloat(document.getElementById('threshSlider').value);
+        currentParams.minOp = parseFloat(document.getElementById('minOpSlider').value);
+        document.getElementById('centerVal').innerText = currentParams.center.toFixed(3);
+        document.getElementById('threshVal').innerText = currentParams.threshold.toFixed(3);
+        document.getElementById('minOpVal').innerText = currentParams.minOp.toFixed(2);
+        renderAllPlots();
+    }
+    
+    document.getElementById('csvFile').addEventListener('change', (e) => {
+        if (e.target.files.length) loadAndProcess(e.target.files[0]);
+    });
+    document.getElementById('centerSlider').addEventListener('input', updateFromSliders);
+    document.getElementById('threshSlider').addEventListener('input', updateFromSliders);
+    document.getElementById('minOpSlider').addEventListener('input', updateFromSliders);
+    document.getElementById('savePNG').addEventListener('click', () => exportFigure('png'));
+    document.getElementById('savePDF').addEventListener('click', () => exportFigure('pdf'));
+</script>
+</body>
+</html>

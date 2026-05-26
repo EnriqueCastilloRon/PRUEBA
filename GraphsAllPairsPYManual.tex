@@ -1,0 +1,137 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\definecolor{codebg}{rgb}{0.95,0.95,0.95}
+\lstset{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codebg},
+    frame=single,
+    breaklines=true,
+    language=Python,
+    showstringspaces=false
+}
+
+\title{User Manual: Interactive Fatigue Data Visualizer}
+\author{Generated from \texttt{grphsallpairs.py}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+This program is an interactive data visualization tool designed for fatigue analysis. It reads a CSV file containing three columns: \texttt{R} (stress ratio), \texttt{sigmaM} (mean stress), and \texttt{N} (number of cycles). The tool computes derived variables, normalizes them, and displays six scatter plots with an adjustable opacity filter. It is intended to be run in a **Google Colab** environment using \texttt{ipywidgets}.
+
+\section{Requirements}
+\begin{itemize}
+    \item Python 3.7 or higher
+    \item Libraries: \texttt{pandas}, \texttt{numpy}, \texttt{matplotlib}, \texttt{ipywidgets}, \texttt{IPython}
+    \item A Google Colab notebook or a local Jupyter notebook with widget support
+\end{itemize}
+
+\section{First Launch}
+When you run the script, the following actions occur automatically:
+\begin{enumerate}
+    \item A default embedded dataset (about 300 rows) is loaded.
+    \item Six scatter plots are displayed (see Section~\ref{sec:plots}).
+    \item Three sliders and three buttons appear below the plots.
+\end{enumerate}
+
+\section{Loading Data}
+\subsection{Default Dataset}
+The program starts with an internal dataset. No action is needed to load it.
+
+\subsection{Loading Your Own CSV File}
+To analyse your own data:
+\begin{enumerate}
+    \item Click the \textbf{Seleccionar CSV} button (file upload widget).
+    \item Select a CSV file from your computer.
+    \item The file must contain exactly three columns named: \texttt{R}, \texttt{sigmaM}, \texttt{N} (case‑sensitive).
+    \item After selection, the plots update automatically, and all sliders reset to their default values (Center $\alpha=0.5$, Threshold $=0.2$, Min $\alpha=0.1$).
+\end{enumerate}
+
+\noindent If the file format is incorrect, an error message will be printed.
+
+\subsection{Resetting the Interface}
+Click the \textbf{Leer otro caso} button to reset the sliders to their default positions. A message reminds you to use the file selector to load a new CSV.
+
+\section{Controls}
+\subsection{Sliders}
+Three sliders control the opacity (transparency) of points in all six plots.
+\begin{description}
+    \item[\texttt{Center α}] – The central value of the normalized opacity range. Points whose normalized opacity ($\alpha$) is close to this value become more visible.
+    \item[\texttt{Threshold}] – Defines the width of the window around \texttt{Center α}. Points with $\alpha$ in $[\text{Center}-\text{Threshold},\ \text{Center}+\text{Threshold}]$ are highlighted (their opacity is increased).
+    \item[\texttt{Min α}] – The minimum opacity for points outside the selected window. Points inside the window receive a higher opacity, linearly scaled according to their $\alpha$ value.
+\end{description}
+\noindent \textbf{Normalized opacity $\alpha$} is computed from \texttt{sigmaM}:
+\[
+\alpha = \frac{\sigma_M - \min(\sigma_M)}{\max(\sigma_M) - \min(\sigma_M)}
+\]
+
+\subsection{Buttons}
+\begin{description}
+    \item[\texttt{Save PNG}] – Saves the current set of six plots as a PNG image. The filename includes a timestamp.
+    \item[\texttt{Save PDF}] – Saves the current plots as a PDF vector graphic.
+    \item[\texttt{Leer otro caso}] – Resets the sliders to default values and prompts you to upload a new CSV file.
+\end{description}
+
+\section{Description of the Plots}
+\label{sec:plots}
+The figure consists of 2 rows and 3 columns, showing the following relationships:
+
+\begin{enumerate}
+    \item \textbf{Top left}: $N$ (cycles) vs. $\sigma_M$ (mean stress) – log scale on $N$.
+    \item \textbf{Top middle}: $N$ vs. $\sigma_m$ (computed as $R \cdot \sigma_M$) – log scale on $N$.
+    \item \textbf{Top right}: $\sigma_M$ vs. $\sigma_m$ – linear scales.
+    \item \textbf{Bottom left}: $N$ vs. $X$ where $X = 1 - R$ – log scale on $N$.
+    \item \textbf{Bottom middle}: $N$ vs. $Y$ where $Y$ is a normalized version of $\sigma_m$:
+        \[
+        Y = \frac{\sigma_m - \min(\sigma_m)}{\max(\sigma_m) - \min(\sigma_m)}
+        \]
+    \item \textbf{Bottom right}: $X$ vs. $Y$ – linear scales.
+\end{enumerate}
+
+All plots have grid lines. The colour of the points is fixed per subplot (blue, green, red, purple, orange, brown). Opacity changes according to the sliders.
+
+\section{Example Workflow}
+\begin{enumerate}
+    \item Run the script. The default dataset appears.
+    \item Move the \texttt{Center α} slider to 0.7 and \texttt{Threshold} to 0.1. Points with high $\sigma_M$ become emphasised.
+    \item Click \texttt{Save PNG} to export the current view.
+    \item Click \texttt{Leer otro caso} and then \texttt{Seleccionar CSV} to upload your own fatigue data.
+    \item After loading, the plots refresh with your data and sliders return to 0.5 / 0.2 / 0.1.
+    \item Adjust the sliders to explore regions of interest.
+\end{enumerate}
+
+\section{Troubleshooting}
+\begin{itemize}
+    \item \textbf{No plots appear?} Make sure you are running the code in a Jupyter/Colab environment with widget support. Run the cell again.
+    \item \textbf{File upload error:} Ensure your CSV has exactly the three columns \texttt{R}, \texttt{sigmaM}, \texttt{N} (no extra spaces, commas as separators).
+    \item \textbf{Error: ``The 'value' trait is read-only''} – The code already handles this; if you see it, update the \texttt{ipywidgets} library or restart the kernel.
+    \item \textbf{KeyError: 'name'} – This was fixed in the provided script. If you encounter it, make sure you are using the corrected version of \texttt{on\_load\_case}.
+    \item \textbf{Plots are too slow?} Reduce the number of points in your CSV (or use the default dataset which is moderate).
+\end{itemize}
+
+\section{How to Obtain the PDF of This Manual}
+You are reading the LaTeX source. To generate the PDF:
+\begin{enumerate}
+    \item Copy the entire LaTeX code into a file named \texttt{manual.tex}.
+    \item Run \texttt{pdflatex manual.tex} twice (to resolve references).
+    \item The output \texttt{manual.pdf} will be created.
+\end{enumerate}
+Alternatively, paste the code into \href{https://www.overleaf.com}{Overleaf} and click ``Recompile''.
+
+\section{License and Notes}
+This tool is free to use and modify. The default dataset is embedded; you may replace it with your own data. For any issues, inspect the console output for error messages.
+
+\end{document}
