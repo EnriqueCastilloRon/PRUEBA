@@ -39,7 +39,7 @@
     <div class="file-zone">
         <label class="file-label" for="csvFile">📂 Load DataFatigue.csv</label>
         <input type="file" id="csvFile" accept=".csv">
-        <span id="status">Cargando caso por defecto (40 líneas incrustadas)...</span>
+        <span id="status">Loading default case (40 embedded lines)...</span>
     </div>
 
     <div id="plotGrid" class="plot-grid"></div>
@@ -75,7 +75,7 @@
     let derived = null;
     let currentParams = { center: 0.5, threshold: 0.2, minOp: 0.1 };
     
-    // --- DATOS POR DEFECTO INCRUSTADOS (primeras 40 líneas de DataFatigue.csv) ---
+    // --- EMBEDDED DEFAULT DATA (first 40 rows of DataFatigue.csv) ---
     const defaultCSV = `R,N,sigmaM
 0.18697928091831784,9225.697201913348,758.5060430500258
 -0.11036528001829393,3419.8035363676063,938.9768370857821
@@ -1078,13 +1078,13 @@
 -0.33404251959038533,3169.514418244699,805.7430557583342
 0.2519035951058656,82751180.89351276,273.0657022873953`;
 
-    // Definiciones de los gráficos (igual que antes)
+    // Plot definitions (unchanged)
     const plotDefs = [
         { id: "plot0", title: "logN vs sigmaM", xKey: "logN", yKey: "sigmaM", xLabel: "logN", yLabel: "sigmaM", xlog: true, baseColor: "rgb(31, 119, 180)" },
         { id: "plot1", title: "logN vs sigma_m", xKey: "logN", yKey: "sigma_m", xLabel: "logN", yLabel: "sigma_m = R·σM", xlog: true, baseColor: "rgb(44, 160, 44)" },
         { id: "plot2", title: "sigmaM vs sigma_m", xKey: "sigmaM", yKey: "sigma_m", xLabel: "sigmaM", yLabel: "sigma_m", xlog: false, baseColor: "rgb(214, 39, 40)" },
         { id: "plot3", title: "logN vs X", xKey: "logN", yKey: "X", xLabel: "logN", yLabel: "X = 1 - R", xlog: true, baseColor: "rgb(148, 103, 189)" },
-        { id: "plot4", title: "logN vs Y", xKey: "logN", yKey: "Y", xLabel: "logN", yLabel: "Y (σ_m normalizado)", xlog: true, baseColor: "rgb(255, 127, 14)" },
+        { id: "plot4", title: "logN vs Y", xKey: "logN", yKey: "Y", xLabel: "logN", yLabel: "Y (normalized sigma_m)", xlog: true, baseColor: "rgb(255, 127, 14)" },
         { id: "plot5", title: "X vs Y", xKey: "X", yKey: "Y", xLabel: "X = 1 - R", yLabel: "Y", xlog: false, baseColor: "rgb(140, 86, 75)" }
     ];
 
@@ -1214,7 +1214,7 @@
         }
     }
 
-    // Función que procesa datos (texto CSV) y actualiza gráficos y controles
+    // Process CSV data (text) and update plots and controls
     function processData(csvText, sourceName = "file") {
         const lines = csvText.trim().split(/\r?\n/);
         if (lines.length < 2) {
@@ -1269,7 +1269,7 @@
         
         derived = { logN, sigma_m, X, Y, raw_alpha, sigmaM: sigmaM_vals };
         
-        // Crear los divs de los gráficos si no existen
+        // Create plot divs if they don't exist
         const grid = document.getElementById('plotGrid');
         if (grid.children.length === 0) {
             plotDefs.forEach(def => {
@@ -1290,17 +1290,17 @@
         return true;
     }
 
-    // Cargar datos por defecto al inicio (sin leer fichero)
+    // Load default embedded case (40 rows)
     function loadDefaultCase() {
         const success = processData(defaultCSV, "default embedded (40 rows)");
         if (success) {
-            document.getElementById('status').innerHTML = `✅ Caso por defecto cargado (40 puntos). Puedes cargar otro CSV.`;
+            document.getElementById('status').innerHTML = `✅ Default case loaded (40 points). You can load another CSV.`;
         } else {
-            document.getElementById('status').innerHTML = `⚠️ Error al cargar datos por defecto.`;
+            document.getElementById('status').innerHTML = `⚠️ Error loading default data.`;
         }
     }
 
-    // Manejar carga de archivo externo
+    // Handle external file upload
     document.getElementById('csvFile').addEventListener('change', (e) => {
         if (e.target.files.length) {
             const file = e.target.files[0];
@@ -1312,7 +1312,7 @@
         }
     });
 
-    // Sliders
+    // Slider update
     function updateFromSliders() {
         if (!derived) return;
         currentParams.center = parseFloat(document.getElementById('centerSlider').value);
@@ -1328,7 +1328,7 @@
     document.getElementById('threshSlider').addEventListener('input', updateFromSliders);
     document.getElementById('minOpSlider').addEventListener('input', updateFromSliders);
     
-    // Exportar PNG/PDF
+    // Export PNG/PDF
     async function exportFigure(format) {
         if (!derived) return;
         const grid = document.getElementById('plotGrid');
@@ -1361,7 +1361,7 @@
     document.getElementById('savePNG').addEventListener('click', () => exportFigure('png'));
     document.getElementById('savePDF').addEventListener('click', () => exportFigure('pdf'));
     
-    // Inicializar con el caso por defecto
+    // Initialize with default case
     loadDefaultCase();
 </script>
 </body>
